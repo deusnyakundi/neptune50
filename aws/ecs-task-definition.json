@@ -1,0 +1,58 @@
+{
+  "family": "device-provisioning-app",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "containerDefinitions": [
+    {
+      "name": "app",
+      "image": "${ECR_REPOSITORY_URL}:${IMAGE_TAG}",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 5000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DB_HOST",
+          "valueFrom": "${DB_HOST_ARN}"
+        },
+        {
+          "name": "DB_USER",
+          "valueFrom": "${DB_USER_ARN}"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "${DB_PASSWORD_ARN}"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "${JWT_SECRET_ARN}"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/device-provisioning",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "app"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3
+      }
+    }
+  ]
+} 
