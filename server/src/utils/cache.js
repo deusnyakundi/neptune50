@@ -1,56 +1,63 @@
-const redis = require('./redis');
+const Redis = require('ioredis');
 const logger = require('./logger');
 
-class CacheManager {
-  constructor(defaultTTL = 3600) { // 1 hour default TTL
-    this.defaultTTL = defaultTTL;
+// Create Redis client
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: process.env.REDIS_PORT || 6379,
+  retryStrategy: (times) => {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
   }
+});
 
-  generateKey(prefix, params) {
-    const sortedParams = Object.entries(params || {})
-      .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-      .map(([key, value]) => `${key}:${value}`)
-      .join('|');
-    
-    return `${prefix}:${sortedParams}`;
-  }
+redis.on('error', (error) => {
+  logger.error('Redis connection error:', error);
+});
 
+redis.on('connect', () => {
+  logger.info('Redis connected successfully');
+});
+
+const cache = {
+  // Set data in cache
+  async set(key, value, expireTime = 3600) {
+    try {
+      const serialized = JSON.stringify(value);
+      await redis.setex(key, expireTime, serialized);
+    } catch (error) {
+      logger.error('Cache set error:', error);
+    }
+  },
+
+  // Get data from cache
   async get(key) {
     try {
-      const cached = await redis.get(key);
-      return cached ? JSON.parse(cached) : null;
+      const data = await redis.get(key);
+      return data ? JSON.parse(data) : null;
     } catch (error) {
       logger.error('Cache get error:', error);
       return null;
     }
-  }
+  },
 
-  async set(key, value, ttl = this.defaultTTL) {
-    try {
-      await redis.set(key, JSON.stringify(value), 'EX', ttl);
-    } catch (error) {
-      logger.error('Cache set error:', error);
-    }
-  }
-
-  async delete(key) {
+  // Delete data from cache
+  async del(key) {
     try {
       await redis.del(key);
     } catch (error) {
       logger.error('Cache delete error:', error);
     }
-  }
+  },
 
-  async invalidatePattern(pattern) {
+  // Clear all cache
+  async clear() {
     try {
-      const keys = await redis.keys(pattern);
-      if (keys.length > 0) {
-        await redis.del(keys);
-      }
+      await redis.flushall();
     } catch (error) {
-      logger.error('Cache pattern invalidation error:', error);
+      logger.error('Cache clear error:', error);
     }
   }
-}
+};
 
-module.exports = new CacheManager(); 
+module.exports = cache; 
