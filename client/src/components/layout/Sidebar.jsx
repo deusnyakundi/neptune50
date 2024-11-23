@@ -92,7 +92,14 @@ const Sidebar = ({ open, onClose }) => {
 
   const drawerContent = (
     <>
-      <Box sx={{ p: 2 }}>
+      <Box 
+        sx={{ 
+          p: 2, 
+          height: '64px', // Match AppBar height
+          display: 'flex',
+          alignItems: 'center'
+        }}
+      >
         <Typography variant="h6" noWrap component="div">
           PERN Provisioning
         </Typography>
@@ -150,7 +157,15 @@ const Sidebar = ({ open, onClose }) => {
   return (
     <Box
       component="nav"
-      sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}
+      sx={{ 
+        width: { md: DRAWER_WIDTH }, 
+        flexShrink: { md: 0 },
+        '& .MuiDrawer-paper': {
+          mt: '64px', // Match AppBar height
+          height: 'calc(100% - 64px)',
+          borderRight: (theme) => `1px solid ${theme.palette.divider}`
+        }
+      }}
     >
       {isMobile ? (
         <Drawer
@@ -170,11 +185,16 @@ const Sidebar = ({ open, onClose }) => {
       ) : (
         <Drawer
           variant="permanent"
-          open
+          open={open}
           sx={{
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: DRAWER_WIDTH,
+              transform: open ? 'none' : `translateX(-${DRAWER_WIDTH}px)`,
+              transition: theme.transitions.create('transform', {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.enteringScreen,
+              }),
             },
           }}
         >

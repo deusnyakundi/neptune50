@@ -37,17 +37,37 @@ const AllProjects = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
 
-  // Fetch projects
-  const { data: projects, isLoading } = useQuery(
-    ['projects', filters],
+  // Modified query with error handling
+  const { data: projects, isLoading, error } = useQuery(
+    ['projects', filters, searchTerm],
     async () => {
-      const response = await api.get('/projects', {
-        params: {
-          search: searchTerm,
-          ...filters,
-        },
-      });
-      return response.data;
+      try {
+        const response = await api.get('/projects', {
+          params: {
+            search: searchTerm,
+            ...filters,
+          },
+        });
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        enqueueSnackbar(error.response?.data?.message || 'Failed to fetch projects', {
+          variant: 'error',
+        });
+        throw error;
+      }
+    },
+    {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      onError: (error) => {
+        // Handle specific error cases
+        if (error.response?.status === 401) {
+          enqueueSnackbar('Session expired. Please login again.', {
+            variant: 'error',
+          });
+        }
+      },
     }
   );
 
@@ -185,6 +205,28 @@ const AllProjects = () => {
             loading={isLoading}
             getRowId={(row) => row.id}
             disableSelectionOnClick
+            error={error}
+            components={{
+              NoRowsOverlay: () => (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    height: '100%',
+                    padding: 2,
+                  }}
+                >
+                  {error ? (
+                    <Typography color="error">
+                      {error.response?.data?.message || 'Error loading projects'}
+                    </Typography>
+                  ) : (
+                    <Typography>No projects found</Typography>
+                  )}
+                </Box>
+              ),
+            }}
           />
         </CardContent>
       </Card>

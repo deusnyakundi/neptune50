@@ -14,6 +14,7 @@ db.pool.connect((err, client, release) => {
     console.error('❌ Database connection error:', err.stack);
     return;
   }
+
   
   console.log('✅ Database connected successfully');
   console.log(`📦 Database: ${process.env.DB_NAME}`);

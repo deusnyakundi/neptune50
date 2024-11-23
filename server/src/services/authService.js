@@ -13,23 +13,30 @@ class AuthService {
         email: user.email,
         role: user.role,
       },
-      config.jwtSecret,
-      { expiresIn: config.jwtExpiresIn }
+      config.jwt.secret,
+      { expiresIn: config.jwt.expiresIn }
     );
   }
 
-  async validateToken(token) {
+  validateToken(token) {
     try {
-      const decoded = jwt.verify(token, config.jwtSecret);
-      const user = await userModel.findByEmail(decoded.email);
-      
-      if (!user) {
-        throw new AuthenticationError('User not found');
+      if (!token) {
+        throw new Error('No token provided');
       }
 
-      return user;
+      const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+
+      const decoded = jwt.verify(cleanToken, config.jwt.secret);
+      
+      console.log('Token validation:', {
+        tokenProvided: !!token,
+        decoded: decoded
+      });
+
+      return decoded;
     } catch (error) {
-      throw new AuthenticationError('Invalid token');
+      console.error('Token validation error:', error.message);
+      throw new Error('Invalid token');
     }
   }
 

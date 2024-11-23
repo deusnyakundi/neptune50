@@ -1,184 +1,182 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery } from 'react-query';
 import {
   Box,
-  Card,
-  CardContent,
   Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  CircularProgress,
+  Chip
 } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import { PendingActions } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { PlayArrow } from '@mui/icons-material';
 import api from '../../utils/api';
-import { PROJECT_STATUS, PROJECT_STATUS_COLORS, formatDate } from '../../utils/projectUtils';
 
 const PendingProjects = () => {
-  const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [openDialog, setOpenDialog] = useState(false);
 
-  // Fetch pending projects
-  const { data: projects, isLoading } = useQuery(
+  // Fetch pending projects with error handling
+  const { data: projects, isLoading, error } = useQuery(
     'pendingProjects',
     async () => {
-      const response = await api.get('/projects', {
-        params: { status: PROJECT_STATUS.PENDING },
-      });
-      return response.data;
-    }
-  );
-
-  // Start project mutation
-  const startProject = useMutation(
-    async ({ projectId, notes }) => {
-      const response = await api.post(`/projects/${projectId}/start`, { notes });
-      return response.data;
+      try {
+        const response = await api.get('/projects/pending');
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching pending projects:', error);
+        enqueueSnackbar(error.response?.data?.message || 'Failed to fetch pending projects', {
+          variant: 'error',
+        });
+        throw error;
+      }
     },
     {
-      onSuccess: () => {
-        queryClient.invalidateQueries('pendingProjects');
-        enqueueSnackbar('Project started successfully', { variant: 'success' });
-        handleCloseDialog();
-      },
+      retry: 1,
+      refetchOnWindowFocus: false,
       onError: (error) => {
-        enqueueSnackbar(
-          error.response?.data?.message || 'Failed to start project',
-          { variant: 'error' }
-        );
+        if (error.response?.status === 401) {
+          enqueueSnackbar('Session expired. Please login again.', {
+            variant: 'error',
+          });
+        }
       },
     }
   );
 
-  const handleStartProject = (project) => {
-    setSelectedProject(project);
-    setOpenDialog(true);
-  };
+  // Loading state
+  if (isLoading) {
+    return (
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          minHeight: '400px'
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
 
-  const handleCloseDialog = () => {
-    setSelectedProject(null);
-    setOpenDialog(false);
-  };
-
-  const handleConfirmStart = (notes) => {
-    startProject.mutate({
-      projectId: selectedProject.id,
-      notes,
-    });
-  };
-
-  const columns = [
-    {
-      field: 'description',
-      headerName: 'Description',
-      flex: 2,
-    },
-    { field: 'region', headerName: 'Region', flex: 1 },
-    { field: 'msp', headerName: 'MSP', flex: 1 },
-    { field: 'partner', headerName: 'Partner', flex: 1 },
-    {
-      field: 'created_at',
-      headerName: 'Created',
-      flex: 1,
-      valueFormatter: (params) => formatDate(params.value),
-    },
-    {
-      field: 'actions',
-      headerName: 'Actions',
-      width: 120,
-      renderCell: (params) => (
-        <Button
-          size="small"
-          variant="contained"
-          color="primary"
-          startIcon={<PlayArrow />}
-          onClick={() => handleStartProject(params.row)}
-        >
-          Start
-        </Button>
-      ),
-    },
-  ];
-
-  return (
-    <Box>
-      <Typography variant="h5" gutterBottom>
-        Pending Projects
-      </Typography>
-
-      <Card>
-        <CardContent>
-          <DataGrid
-            rows={projects || []}
-            columns={columns}
-            pageSize={10}
-            rowsPerPageOptions={[10, 25, 50]}
-            autoHeight
-            loading={isLoading}
-            getRowId={(row) => row.id}
-            disableSelectionOnClick
-          />
-        </CardContent>
-      </Card>
-
-      <StartProjectDialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        onConfirm={handleConfirmStart}
-        project={selectedProject}
-        loading={startProject.isLoading}
-      />
-    </Box>
-  );
-};
-
-// Start Project Dialog Component
-const StartProjectDialog = ({ open, onClose, onConfirm, project, loading }) => {
-  const [notes, setNotes] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onConfirm(notes);
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <form onSubmit={handleSubmit}>
-        <DialogTitle>Start Project</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" gutterBottom>
-            Are you sure you want to start this project?
+  // Error state
+  if (error) {
+    return (
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          p: 4, 
+          textAlign: 'center', 
+          backgroundColor: 'transparent',
+          minHeight: '400px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <Box sx={{ color: 'error.main' }}>
+          <Typography variant="h6">
+            Error Loading Projects
           </Typography>
-          <TextField
-            fullWidth
-            multiline
-            rows={4}
-            label="Notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            margin="normal"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            disabled={loading}
-          >
-            Start Project
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            {error.response?.data?.message || error.message}
+          </Typography>
+        </Box>
+      </Paper>
+    );
+  }
+
+  // No projects state
+  if (!projects?.length) {
+    return (
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          p: 4, 
+          textAlign: 'center', 
+          backgroundColor: 'transparent',
+          minHeight: '400px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <PendingActions sx={{ fontSize: 60, color: 'text.secondary' }} />
+          <Typography variant="h6" color="text.secondary">
+            No Pending Projects
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            All projects are currently up to date
+          </Typography>
+        </Box>
+      </Paper>
+    );
+  }
+
+  // Projects table
+  return (
+    <Box sx={{ p: 3 }}>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h5">
+          Pending Projects
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Total: {projects.length}
+        </Typography>
+      </Box>
+
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Project Name</TableCell>
+              <TableCell>Client</TableCell>
+              <TableCell>Engineer</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Created Date</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {projects.map((project) => (
+              <TableRow 
+                key={project.id}
+                hover
+                sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+              >
+                <TableCell>{project.name}</TableCell>
+                <TableCell>{project.client}</TableCell>
+                <TableCell>{project.engineer_name || 'Unassigned'}</TableCell>
+                <TableCell>
+                  <Chip 
+                    label={project.status}
+                    color={
+                      project.status === 'pending_approval' ? 'warning' :
+                      project.status === 'pending_assignment' ? 'info' :
+                      'default'
+                    }
+                    size="small"
+                    sx={{ minWidth: '120px' }}
+                  />
+                </TableCell>
+                <TableCell>
+                  {new Date(project.created_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
   );
 };
 

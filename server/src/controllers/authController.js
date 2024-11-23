@@ -8,9 +8,12 @@ const authController = {
     login: async (req, res) => {
         try {
             const { email, password } = req.body;
+            console.log('Login attempt for:', email);
+            console.log('Password received:', password); // Debug log
 
             // Validate input
             if (!email || !password) {
+                console.log('Missing credentials'); // Debug log
                 return res.status(400).json({ 
                     message: 'Email and password are required' 
                 });
@@ -18,8 +21,9 @@ const authController = {
 
             // Find user
             const user = await userModel.findByEmail(email);
+            console.log('User found:', user ? 'Yes' : 'No');
+            console.log('Stored hash:', user?.password_hash); // Debug log
             
-            // Check if user exists
             if (!user) {
                 return res.status(401).json({ 
                     message: 'Invalid email or password' 
@@ -27,7 +31,9 @@ const authController = {
             }
 
             // Verify password
+            console.log('Comparing passwords...');
             const isValidPassword = await bcrypt.compare(password, user.password_hash);
+            console.log('Password valid:', isValidPassword);
             
             if (!isValidPassword) {
                 return res.status(401).json({ 
@@ -58,6 +64,7 @@ const authController = {
 
         } catch (error) {
             logger.error('Login error:', error);
+            console.error('Full error:', error); // Debug log
             res.status(500).json({ message: 'Error during login' });
         }
     },
