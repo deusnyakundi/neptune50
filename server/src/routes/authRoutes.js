@@ -1,10 +1,32 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { authenticate } = require('../middleware/auth');
 
-router.post('/login', authController.login);
-router.post('/change-password', authenticate, authController.changePassword);
-router.get('/profile', authenticate, authController.getProfile);
+// Login route
+router.post('/login', (req, res) => {
+    authController.login(req, res);
+});
+
+// Register route
+router.post('/register', (req, res) => {
+    authController.register(req, res);
+});
+
+// Logout route (optional - can be handled client-side)
+router.post('/logout', (req, res) => {
+    res.json({ message: 'Logged out successfully' });
+});
+
+// Password reset request
+router.post('/forgot-password', (req, res) => {
+    // TODO: Implement password reset
+    res.status(501).json({ message: 'Not implemented yet' });
+});
+
+// Password reset
+router.post('/reset-password', (req, res) => {
+    // TODO: Implement password reset
+    res.status(501).json({ message: 'Not implemented yet' });
+});
 
 module.exports = router; 

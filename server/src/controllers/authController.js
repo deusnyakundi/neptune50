@@ -1,126 +1,123 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
-const config = require('../config');
+const userModel = require('../models/userModel');
+const logger = require('../utils/logger');
 
 const authController = {
-  async login(req, res) {
-    try {
-      const { email, password } = req.body;
+    // Login handler
+    login: async (req, res) => {
+        try {
+            const { email, password } = req.body;
 
-      // Validate email domain
-      if (!email.endsWith('@safaricom.co.ke')) {
-        return res.status(400).json({
-          message: 'Only @safaricom.co.ke email addresses are allowed'
-        });
-      }
+            // Validate input
+            if (!email || !password) {
+                return res.status(400).json({ 
+                    message: 'Email and password are required' 
+                });
+            }
 
-      // Check if user exists
-      const { rows } = await db.query(
-        'SELECT * FROM users WHERE email = $1',
-        [email]
-      );
+            // Find user
+            const user = await userModel.findByEmail(email);
+            
+            // Check if user exists
+            if (!user) {
+                return res.status(401).json({ 
+                    message: 'Invalid email or password' 
+                });
+            }
 
-      if (rows.length === 0) {
-        return res.status(401).json({
-          message: 'Invalid credentials'
-        });
-      }
+            // Verify password
+            const isValidPassword = await bcrypt.compare(password, user.password_hash);
+            
+            if (!isValidPassword) {
+                return res.status(401).json({ 
+                    message: 'Invalid email or password' 
+                });
+            }
 
-      const user = rows[0];
+            // Generate JWT token
+            const token = jwt.sign(
+                { 
+                    id: user.id,
+                    email: user.email,
+                    role: user.role 
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: '24h' }
+            );
 
-      // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({
-          message: 'Invalid credentials'
-        });
-      }
+            // Update last login
+            await userModel.updateLastLogin(user.id);
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { 
-          email: user.email,
-          role: user.role,
-          firstLogin: user.first_login
-        },
-        config.jwt.secret,
-        { expiresIn: config.jwt.expiresIn }
-      );
+            // Return user info and token
+            const { password_hash, ...userWithoutPassword } = user;
+            res.json({
+                user: userWithoutPassword,
+                token
+            });
 
-      res.json({
-        token,
-        user: {
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          firstLogin: user.first_login
+        } catch (error) {
+            logger.error('Login error:', error);
+            res.status(500).json({ message: 'Error during login' });
         }
-      });
-    } catch (error) {
-      console.error('Login error:', error);
-      res.status(500).json({
-        message: 'Internal server error'
-      });
+    },
+
+    // Register handler
+    register: async (req, res) => {
+        try {
+            const { email, password, name } = req.body;
+
+            // Validate input
+            if (!email || !password || !name) {
+                return res.status(400).json({ 
+                    message: 'Email, password, and name are required' 
+                });
+            }
+
+            // Check if user exists
+            const existingUser = await userModel.findByEmail(email);
+            if (existingUser) {
+                return res.status(409).json({ 
+                    message: 'Email already registered' 
+                });
+            }
+
+            // Hash password
+            const salt = await bcrypt.genSalt(10);
+            const password_hash = await bcrypt.hash(password, salt);
+
+            // Create user
+            const user = await userModel.create({
+                email,
+                password_hash,
+                name,
+                role: 'user',
+                status: 'active'
+            });
+
+            // Generate token
+            const token = jwt.sign(
+                { 
+                    id: user.id,
+                    email: user.email,
+                    role: user.role 
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            // Return user info and token
+            const { password_hash: ph, ...userWithoutPassword } = user;
+            res.status(201).json({
+                user: userWithoutPassword,
+                token
+            });
+
+        } catch (error) {
+            logger.error('Registration error:', error);
+            res.status(500).json({ message: 'Error during registration' });
+        }
     }
-  },
-
-  async changePassword(req, res) {
-    try {
-      const { currentPassword, newPassword } = req.body;
-      const userEmail = req.user.email;
-
-      // Get user from database
-      const { rows } = await db.query(
-        'SELECT * FROM users WHERE email = $1',
-        [userEmail]
-      );
-
-      const user = rows[0];
-
-      // Verify current password
-      const isValidPassword = await bcrypt.compare(currentPassword, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({
-          message: 'Current password is incorrect'
-        });
-      }
-
-      // Hash new password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-      // Update password and first_login status
-      await db.query(
-        'UPDATE users SET password = $1, first_login = false WHERE email = $2',
-        [hashedPassword, userEmail]
-      );
-
-      res.json({
-        message: 'Password updated successfully'
-      });
-    } catch (error) {
-      console.error('Change password error:', error);
-      res.status(500).json({
-        message: 'Internal server error'
-      });
-    }
-  },
-
-  async getProfile(req, res) {
-    try {
-      const { rows } = await db.query(
-        'SELECT email, name, role, first_login FROM users WHERE email = $1',
-        [req.user.email]
-      );
-
-      res.json(rows[0]);
-    } catch (error) {
-      console.error('Get profile error:', error);
-      res.status(500).json({
-        message: 'Internal server error'
-      });
-    }
-  }
 };
 
 module.exports = authController; 

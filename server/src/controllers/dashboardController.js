@@ -1,30 +1,38 @@
-const BaseController = require('./baseController');
 const dashboardModel = require('../models/dashboardModel');
 
-class DashboardController extends BaseController {
-  async getMetrics(req, res) {
-    await this.handleRequest(req, res, async () => {
-      const { range } = req.query;
-      const metrics = await dashboardModel.getMetrics(range);
-      this.success(res, metrics);
-    });
-  }
+const dashboardController = {
+    // Get overview stats
+    getOverview: async (req, res) => {
+        try {
+            const stats = await dashboardModel.getOverviewStats();
+            res.json(stats);
+        } catch (error) {
+            console.error('Dashboard overview error:', error);
+            res.status(500).json({ message: 'Error fetching dashboard overview' });
+        }
+    },
 
-  async getProjectStatistics(req, res) {
-    await this.handleRequest(req, res, async () => {
-      const { range } = req.query;
-      const stats = await dashboardModel.getProjectStats(range);
-      this.success(res, stats);
-    });
-  }
+    // Get timeline data
+    getTimeline: async (req, res) => {
+        try {
+            const timeline = await dashboardModel.getProjectTimeline();
+            res.json(timeline);
+        } catch (error) {
+            console.error('Timeline error:', error);
+            res.status(500).json({ message: 'Error fetching timeline data' });
+        }
+    },
 
-  async getProvisioningStatistics(req, res) {
-    await this.handleRequest(req, res, async () => {
-      const { range } = req.query;
-      const stats = await dashboardModel.getProvisioningStats(range);
-      this.success(res, stats);
-    });
-  }
-}
+    // Get engineer metrics
+    getEngineerMetrics: async (req, res) => {
+        try {
+            const metrics = await dashboardModel.getEngineerMetrics();
+            res.json(metrics);
+        } catch (error) {
+            console.error('Engineer metrics error:', error);
+            res.status(500).json({ message: 'Error fetching engineer metrics' });
+        }
+    }
+};
 
-module.exports = new DashboardController(); 
+module.exports = dashboardController; 
